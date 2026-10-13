@@ -1,50 +1,56 @@
 # test-manager-library-3145556-api
 
-> **Prueba técnica · Ficha ADSO 3145556**
-> Entrega: **martes 13 de octubre de 2026, a las 5:00 p. m.** (17:00, hora Colombia).
+> **Technical test · ADSO 3145556** — *Manager Library* backend in **PHP 8.3 + Laravel 13**.
+> Implements the spec in [`test-manager-library-3145556-docs`](https://github.com/code-sena/test-manager-library-3145556-docs), translated from Python/.NET to Laravel.
+> Translation decisions and the spec traps found are documented in the `docs` repo under `laravel-decisions/`.
 
-Este repositorio es el **backend** de *Manager Library*, en **PHP con Laravel**. **Empieza vacío a propósito**: se construye en el fork de cada aprendiz.
+## Running it
 
-## Instrucciones
+With the `infra` repo (recommended): `docker compose up --build` starts the empty engine, API, frontend and public page.
 
-Cada aprendiz debe **crear el fork** de los seis repositorios del proyecto y **resolver el proyecto
-con el spec planteado**.
+Locally:
 
-1. Hacer fork, a su cuenta de GitHub, de cada repositorio de la tabla del final.
-2. Leer el spec en [`test-manager-library-3145556-docs`](https://github.com/code-sena/test-manager-library-3145556-docs).
-   Se entrega en dos versiones: `spec-python/` y `spec-.net/`.
-3. Desarrollar en los forks.
+```bash
+cp .env.example .env                  # fill DB_*, JWT_SECRET, ADMIN_USERNAME, ADMIN_PASSWORD
+composer install
+php artisan key:generate
+php artisan migrate                   # creates the `library` schema (ADR-001)
+php artisan library:bootstrap-admin   # initial admin from the environment (D-10)
+PHP_CLI_SERVER_WORKERS=4 php artisan serve
+```
 
-## El reto se desarrolla con React y PHP (Laravel)
+## How it is built (spec → Laravel)
 
-El spec está escrito para Python y para .NET, pero el reto **no** se hace en esos lenguajes:
-
-| Capa | Tecnología del reto |
+| Spec (Python / .NET) | Here |
 |---|---|
-| Frontend | React |
-| Backend | PHP con Laravel |
+| Dependency-free `domain/` (art. I) | `app/Domain` — plain PHP: `Book`, `Loan`, `LoanItem`, `Isbn`, `Quantity`, `DateRange` |
+| Ports owned by the application (art. II) | `app/Application/Ports.php` — `Clock`, `PasswordHasher`, `TokenIssuer`, `CoverStorage`, repositories, `ReportReader` |
+| One service = one use case | `app/Application/Services.php` — `LendBooksService`, `ReturnItemService`, `MostBorrowedReportService`, … |
+| Single composition point (art. III) | `app/Bootstrap/PortBindings.php` (service provider) |
+| SQLAlchemy / EF Core | Laravel query builder on PostgreSQL 16 (**no Eloquent**, see decisions) |
+| Alembic / EF migrations | `database/migrations` — explicit SQL, identical to `data-model.md` |
+| Argon2id / BCrypt | Argon2id (`password_hash`) |
+| JWT HS256, 8 h | Own `JwtTokenIssuer`, `sub` + `role`, no personal data |
+| pytest / xUnit · import-linter / NetArchTest | PHPUnit · `tests/Unit/ArchitectureTest.php` |
 
-Lo que el spec define sobre el negocio —historias, criterios de aceptación, reglas, contrato de la
-API, modelo de datos— se respeta. Lo que define sobre la tecnología se traduce a React y Laravel.
+Language rule (constitution art. XI + instructor): code, comments, docs and commits in English;
+**user-facing messages** (the `message` field of API errors) in Spanish.
 
-## La prueba no consiste en escribir el código
+## Evidence per task (art. XII)
 
-El propósito principal es ver la **capacidad de desempeño con SDD** (*Spec-Driven Development*,
-desarrollo guiado por especificación): cómo se lee, se interpreta y se aplica una especificación
-para llevarla a un stack distinto. El código es el medio, no el fin.
-
-## Entrega
-
-Cuenta lo que quede **subido a los forks antes de las 5:00 p. m.** (17:00). Lo que llegue después no se revisa.
-No hay prórroga: suban avances parciales con commits pequeños durante la prueba.
-
-## Los seis repositorios
-
-| Repositorio | Qué va ahí |
+| Task | Runnable evidence |
 |---|---|
-| [`test-manager-library-3145556-docs`](https://github.com/code-sena/test-manager-library-3145556-docs) | El spec: `spec-python/` y `spec-.net/` |
-| [`test-manager-library-3145556-api`](https://github.com/code-sena/test-manager-library-3145556-api) | Backend en PHP (Laravel) |
-| [`test-manager-library-3145556-app`](https://github.com/code-sena/test-manager-library-3145556-app) | Frontend en React |
-| [`test-manager-library-3145556-page`](https://github.com/code-sena/test-manager-library-3145556-page) | Sitio público estático de presentación |
-| [`test-manager-library-3145556-infra`](https://github.com/code-sena/test-manager-library-3145556-infra) | Contenedores, red, volúmenes y motor de base de datos vacío |
-| [`test-manager-library-3145556-tool`](https://github.com/code-sena/test-manager-library-3145556-tool) | Utilidades: sembrador de datos de demostración |
+| T-01 | `GET /api/v1/health` → `{"status":"ok"}` |
+| T-02, T-18 | `tests/Feature/ApiContractTest::test_engine_matches_data_model` (six tables, no `DEFAULT`, CHECKs) |
+| T-03 – T-06 | `tests/Unit/DomainTest.php` |
+| T-07 – T-11, T-16 | `tests/Feature/ApiContractTest.php` (§2 error codes, single error body, frozen report) |
+| T-13 / RNF-2 | `tests/concurrency/last-copy.sh` — two loans of the last copy: `201 409` |
+| T-14 | `POST /users` response has no `password`; passwords are in `dontFlash` |
+| T-15 | 2 MB PNG cover → 200; 3 MB → 422; a JPG renamed `.png` is detected by content |
+| T-17 | `docker/entrypoint.sh`: migrates the empty database and creates the admin from the environment |
+| T-19 | `tests/Unit/ArchitectureTest.php` (articles I, II and III) |
+
+```bash
+composer test     # 19 tests, library_test database on PostgreSQL
+API=http://localhost:8000/api/v1 ADMIN_USERNAME=admin ADMIN_PASSWORD=… tests/concurrency/last-copy.sh
+```
