@@ -1,7 +1,5 @@
 <?php
 
-use App\Models\User;
-
 return [
 
     /*
@@ -62,15 +60,12 @@ return [
     */
 
     'providers' => [
+        // Not used: the API authenticates with its own stateless JWT (TokenIssuer port).
+        // Points at the real `library.user` table so no reference to a non-existent Eloquent model remains.
         'users' => [
-            'driver' => 'eloquent',
-            'model' => env('AUTH_MODEL', User::class),
+            'driver' => 'database',
+            'table' => 'library.user',
         ],
-
-        // 'users' => [
-        //     'driver' => 'database',
-        //     'table' => 'users',
-        // ],
     ],
 
     /*
