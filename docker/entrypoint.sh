@@ -11,4 +11,5 @@ done
 
 php artisan migrate --force
 php artisan library:bootstrap-admin
-exec php artisan serve --host=0.0.0.0 --port=8000
+# --no-reload is required for PHP_CLI_SERVER_WORKERS to start several workers.
+exec php artisan serve --host=0.0.0.0 --port=8000 --no-reload
